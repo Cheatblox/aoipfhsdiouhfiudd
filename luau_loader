@@ -3,7 +3,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 
 local FOVContainer = Drawing.new("Circle")
 FOVContainer.Visible = true
@@ -11,9 +10,12 @@ FOVContainer.Thickness = 1
 FOVContainer.Radius = 250
 FOVContainer.Color = Color3.fromRGB(255, 255, 255)
 FOVContainer.Filled = false
+FOVContainer.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
 local function getClosestEnemy()
     local closest, dist = nil, FOVContainer.Radius
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Team ~= LocalPlayer.Team then
             local char = p.Character
@@ -22,8 +24,7 @@ local function getClosestEnemy()
                 if head then
                     local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
                     if onScreen then
-                        local mousePos = UserInputService:GetMouseLocation()
-                        local magnitude = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                        local magnitude = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                         if magnitude < dist then
                             closest = head
                             dist = magnitude
@@ -37,61 +38,51 @@ local function getClosestEnemy()
 end
 
 local mt = getrawmetatable(game)
-local oldIndex = mt.__index
+local oldNamecall = mt.__namecall
 setreadonly(mt, false)
 
-mt.__index = newcclosure(function(t, k)
-    if not checkcaller() and t == Mouse and (k == "Hit" or k == "Target") then
+mt.__namecall = newcclosure(function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+
+    if not checkcaller() and (method == "FindPartOnRayWithIgnoreList" or method == "Raycast" or method == "FireServer") then
         local target = getClosestEnemy()
         if target then
-            if k == "Hit" then return target.CFrame end
-            if k == "Target" then return target end
+            return target.CFrame, target.Position, target, target.Position
         end
     end
-    return oldIndex(t, k)
+    return oldNamecall(self, unpack(args))
 end)
 setreadonly(mt, true)
 
 local function CreateESP(targetPlayer)
-    local function apply(char)
-        if targetPlayer ~= LocalPlayer and targetPlayer.Team ~= LocalPlayer.Team then
-            local highlight = char:FindFirstChild("ESPHighlight") or Instance.new("Highlight")
-            highlight.Name = "ESPHighlight"
-            highlight.Parent = char
-            highlight.FillColor = Color3.fromRGB(255, 0, 0)
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            highlight.FillAlpha = 0.5
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    targetPlayer.CharacterAdded:Connect(function(char)
+        if targetPlayer.Team ~= LocalPlayer.Team then
+            task.wait(0.5)
+            local h = Instance.new("Highlight")
+            h.Name = "ESPHighlight"
+            h.Parent = char
+            h.FillColor = Color3.fromRGB(255, 0, 0)
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         end
-    end
-    if targetPlayer.Character then apply(targetPlayer.Character) end
-    targetPlayer.CharacterAdded:Connect(apply)
+    end)
 end
 
 RunService.RenderStepped:Connect(function()
-    LocalPlayer.CameraMode = Enum.CameraMode.Classic
-    LocalPlayer.CameraMaxZoomDistance = 20
-    LocalPlayer.CameraMinZoomDistance = 5
-    FOVContainer.Position = UserInputService:GetMouseLocation()
+    FOVContainer.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            if v.Name:lower():find("arm") or v.Name:lower():find("hand") or v.Parent.Name:lower():find("viewmodel") then
-                v.LocalTransparencyModifier = 1
-            end
-        end
-    end
-
     if LocalPlayer.Character then
-        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.LocalTransparencyModifier = 0.5
-            end
-        end
-        
         local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
             hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(100), 0)
+        end
+        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.LocalTransparencyModifier = 0.5
+                if v.Name:lower():find("arm") or v.Name:lower():find("hand") then
+                    v.LocalTransparencyModifier = 1
+                end
+            end
         end
     end
 end)
