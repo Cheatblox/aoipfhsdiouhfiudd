@@ -1,16 +1,15 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
+-- FOV 설정
 local FOVContainer = Drawing.new("Circle")
 FOVContainer.Visible = true
 FOVContainer.Thickness = 1
 FOVContainer.Radius = 250
 FOVContainer.Color = Color3.fromRGB(255, 255, 255)
 FOVContainer.Filled = false
-FOVContainer.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
 local function getClosestEnemy()
     local closest, dist = nil, FOVContainer.Radius
@@ -37,52 +36,44 @@ local function getClosestEnemy()
     return closest
 end
 
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
-
-mt.__namecall = newcclosure(function(self, ...)
+-- Xeno 등 최신 실행기에서 권장하는 hookmetamethod 방식
+local namecall;
+namecall = hookmetamethod(game, "__namecall", function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
 
     if not checkcaller() and (method == "FindPartOnRayWithIgnoreList" or method == "Raycast" or method == "FireServer") then
         local target = getClosestEnemy()
         if target then
+            -- 게임에 따라 리턴값을 조정해야 할 수 있음
             return target.CFrame, target.Position, target, target.Position
         end
     end
-    return oldNamecall(self, unpack(args))
+    return namecall(self, unpack(args))
 end)
-setreadonly(mt, true)
 
+-- ESP 및 루프 부분
 local function CreateESP(targetPlayer)
-    targetPlayer.CharacterAdded:Connect(function(char)
+    local function apply(char)
         if targetPlayer.Team ~= LocalPlayer.Team then
             task.wait(0.5)
-            local h = Instance.new("Highlight")
+            local h = char:FindFirstChild("ESPHighlight") or Instance.new("Highlight")
             h.Name = "ESPHighlight"
             h.Parent = char
             h.FillColor = Color3.fromRGB(255, 0, 0)
             h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         end
-    end)
+    end
+    targetPlayer.CharacterAdded:Connect(apply)
+    if targetPlayer.Character then apply(targetPlayer.Character) end
 end
 
 RunService.RenderStepped:Connect(function()
     FOVContainer.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
     if LocalPlayer.Character then
         local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
-            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(100), 0)
-        end
-        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.LocalTransparencyModifier = 0.5
-                if v.Name:lower():find("arm") or v.Name:lower():find("hand") then
-                    v.LocalTransparencyModifier = 1
-                end
-            end
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(10), 0) -- 스핀 속도 조절
         end
     end
 end)
