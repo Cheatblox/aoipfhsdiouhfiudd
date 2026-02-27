@@ -3,31 +3,27 @@ local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
-local FOVContainer = Drawing.new("Circle")
-FOVContainer.Visible = true
-FOVContainer.Thickness = 1
-FOVContainer.Radius = 150
-FOVContainer.Color = Color3.fromRGB(255, 255, 255)
-FOVContainer.Filled = false
-FOVContainer.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+local FOV = Drawing.new("Circle")
+FOV.Visible = true
+FOV.Thickness = 1
+FOV.Radius = 150
+FOV.Color = Color3.fromRGB(255, 255, 255)
+FOV.Filled = false
 
-local function getClosestEnemy()
-    local closest, dist = nil, FOVContainer.Radius
+local function getTarget()
+    local closest, dist = nil, FOV.Radius
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Team ~= LocalPlayer.Team then
             local char = p.Character
-            if char and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
-                local head = char:FindFirstChild("Head")
-                if head then
-                    local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                    if onScreen then
-                        local magnitude = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                        if magnitude < dist then
-                            closest = head
-                            dist = magnitude
-                        end
+            if char and char:FindFirstChild("Head") and char.Humanoid.Health > 0 then
+                local pos, onScreen = Camera:WorldToViewportPoint(char.Head.Position)
+                if onScreen then
+                    local magnitude = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                    if magnitude < dist then
+                        closest = char.Head
+                        dist = magnitude
                     end
                 end
             end
@@ -36,25 +32,20 @@ local function getClosestEnemy()
     return closest
 end
 
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
-
-mt.__namecall = newcclosure(function(self, ...)
-    local args = {...}
+local old;
+old = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
+    local args = {...}
 
     if not checkcaller() and method == "FireServer" and tostring(self) == "Fire" then
-        local target = getClosestEnemy()
-        if target then
-            return oldNamecall(self, target.Position, unpack(args))
+        local t = getTarget()
+        if t then
+            return old(self, t.Position, unpack(args))
         end
     end
-    return oldNamecall(self, unpack(args))
+    return old(self, unpack(args))
 end)
 
-setreadonly(mt, true)
-
 RunService.RenderStepped:Connect(function()
-    FOVContainer.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOV.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 end)
