@@ -1,35 +1,100 @@
-local players = game:Getservice("players")
-local Runservice = game:Getservice("Runservice")
-local UserInputservice = game:Getservice("UserInputservice")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+local FOVContainer = Drawing.new("Circle")
+FOVContainer.Visible = true
+FOVContainer.Thickness = 1
+FOVContainer.Radius = 250
+FOVContainer.Color = Color3.fromRGB(255, 255, 255)
+FOVContainer.Filled = false
+
+local function getClosestEnemy()
+    local closest, dist = nil, FOVContainer.Radius
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Team ~= LocalPlayer.Team then
+            local char = p.Character
+            if char and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
+                local head = char:FindFirstChild("Head")
+                if head then
+                    local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                    if onScreen then
+                        local mousePos = UserInputService:GetMouseLocation()
+                        local magnitude = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                        if magnitude < dist then
+                            closest = head
+                            dist = magnitude
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
 
 local mt = getrawmetatable(game)
 local oldIndex = mt.__index
 setreadonly(mt, false)
 
-mt.index = newcclosure(function(t, k)
-if t == mouse and (k == "hit" or k == "Target") then
-if target then
-if k == "hit" then
-return target.CFrame
-elseif k == "Target" then
-return target
+mt.__index = newcclosure(function(t, k)
+    if not checkcaller() and t == Mouse and (k == "Hit" or k == "Target") then
+        local target = getClosestEnemy()
+        if target then
+            if k == "Hit" then return target.CFrame end
+            if k == "Target" then return target end
+        end
+    end
+    return oldIndex(t, k)
+end)
+setreadonly(mt, true)
+
+local function CreateESP(targetPlayer)
+    local function apply(char)
+        if targetPlayer ~= LocalPlayer and targetPlayer.Team ~= LocalPlayer.Team then
+            local highlight = char:FindFirstChild("ESPHighlight") or Instance.new("Highlight")
+            highlight.Name = "ESPHighlight"
+            highlight.Parent = char
+            highlight.FillColor = Color3.fromRGB(255, 0, 0)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.FillAlpha = 0.5
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        end
+    end
+    if targetPlayer.Character then apply(targetPlayer.Character) end
+    targetPlayer.CharacterAdded:Connect(apply)
+end
 
 RunService.RenderStepped:Connect(function()
-if player.Character and player.Character:findFirstChild("HumanoidRootPart") then
-local hrp =player.Character.HumanoidRootpart
-hrp.CFrame = hrp.Cframe * CFrame.Angles(0, mathrad(100),0)
+    LocalPlayer.CameraMode = Enum.CameraMode.Classic
+    LocalPlayer.CameraMaxZoomDistance = 20
+    LocalPlayer.CameraMinZoomDistance = 5
+    FOVContainer.Position = UserInputService:GetMouseLocation()
+    
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") then
+            if v.Name:lower():find("arm") or v.Name:lower():find("hand") or v.Parent.Name:lower():find("viewmodel") then
+                v.LocalTransparencyModifier = 1
+            end
+        end
+    end
 
-if targetPlayer.Team ~= game.PLayersLocalPlayer.Team then
-local function CreateESP(targetPLayer)
-local char = targetPlayer.Character
-if char and not char:FindFirstChild("ESPHighlight") then
-local highlight = Instance.new("Highlight")
-highlight..Name = "ESPHighlight"
-highlightParent = char
-highlight.FillColor = Color3.fromRGB(255, 0, 0)
-highlight.OutlineColor = Color.fromRGB(255, 255, 255)
-hinghlight.FillAlpha = 0.2
-highlight.DepthMode = Enum.highlightDepthMode.AlwaysOnTop
-game.Players.PlayerAdded:Connect(Function(player)
-player.CharacterAddded:Connnect(function(char)
+    if LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.LocalTransparencyModifier = 0.5
+            end
+        end
+        
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(100), 0)
+        end
+    end
+end)
+
+for _, p in pairs(Players:GetPlayers()) do CreateESP(p) end
+Players.PlayerAdded:Connect(CreateESP)
