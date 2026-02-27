@@ -1,0 +1,35 @@
+local players = game:Getservice("players")
+local Runservice = game:Getservice("Runservice")
+local UserInputservice = game:Getservice("UserInputservice")
+local Camera = workspace.CurrentCamera
+
+local mt = getrawmetatable(game)
+local oldIndex = mt.__index
+setreadonly(mt, false)
+
+mt.index = newcclosure(function(t, k)
+if t == mouse and (k == "hit" or k == "Target") then
+if target then
+if k == "hit" then
+return target.CFrame
+elseif k == "Target" then
+return target
+
+RunService.RenderStepped:Connect(function()
+if player.Character and player.Character:findFirstChild("HumanoidRootPart") then
+local hrp =player.Character.HumanoidRootpart
+hrp.CFrame = hrp.Cframe * CFrame.Angles(0, mathrad(100),0)
+
+if targetPlayer.Team ~= game.PLayersLocalPlayer.Team then
+local function CreateESP(targetPLayer)
+local char = targetPlayer.Character
+if char and not char:FindFirstChild("ESPHighlight") then
+local highlight = Instance.new("Highlight")
+highlight..Name = "ESPHighlight"
+highlightParent = char
+highlight.FillColor = Color3.fromRGB(255, 0, 0)
+highlight.OutlineColor = Color.fromRGB(255, 255, 255)
+hinghlight.FillAlpha = 0.2
+highlight.DepthMode = Enum.highlightDepthMode.AlwaysOnTop
+game.Players.PlayerAdded:Connect(Function(player)
+player.CharacterAddded:Connnect(function(char)
