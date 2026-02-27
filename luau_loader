@@ -32,24 +32,20 @@ local function getTarget()
     return closest
 end
 
-local mt = getrawmetatable(game)
-local old = mt.__namecall
-setreadonly(mt, false)
-
-mt.__namecall = function(self, ...)
+local old;
+old = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
 
-    if method == "FireServer" and tostring(self) == "Fire" then
+    if not checkcaller() and method == "FireServer" and tostring(self) == "Fire" then
         local t = getTarget()
         if t then
-            return old(self, t.Position, unpack(args))
+            args[1] = t.Position
+            return old(self, unpack(args))
         end
     end
     return old(self, unpack(args))
-end
-
-setreadonly(mt, true)
+end)
 
 RunService.RenderStepped:Connect(function()
     FOV.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
